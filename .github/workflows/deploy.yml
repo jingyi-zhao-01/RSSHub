@@ -27,5 +27,5 @@ jobs:
         run: sudo apt-get update && sudo apt-get install docker-compose -y
 
       - name: Run Docker Compose
-        working-directory: deploy/docker
+        working-directory: .
         run: docker-compose up -d
