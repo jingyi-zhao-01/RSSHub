@@ -4,21 +4,26 @@ services:
         # * comment out marked lines, then use this image instead: diygod/rsshub:chromium-bundled
         # * (consumes more disk space and memory) leave everything unchanged
         image: diygod/rsshub
+#        image: diygod/rsshub:chromium-bundled
         restart: always
         ports:
             - "1200:1200"
         environment:
             NODE_ENV: production
             CACHE_TYPE: redis
-            REDIS_URL: "redis://redis:6379/"
+            REDIS_URL: "redis://default:CbzQ6vuDx8D0UTUvI637wmSsmnuygh9v@redis-11025.c274.us-east-1-3.ec2.redns.redis-cloud.com:11025"
             PUPPETEER_WS_ENDPOINT: "ws://browserless:3000" # marked
+            TWITTER_AUTH_TOKEN: "3402f709457bdc599ab3933e3fa78988cfaa1ebe"
+            BILIBILI_COOKIE_1297789: "buvid3=03A8252B-060B-0DAA-AF1B-952AB1A3CA6048762infoc; b_nut=1743135648; _uuid=10CB1166D-AD59-18BC-B1C3-7210E7108E31F449550infoc; buvid_fp=653c7401fffa649829b1bbb973f2cde6; buvid4=633E605E-6125-8237-FD70-D42F81F2F44570107-024101202-hmH9TGTJxuLTH7anGUWZMQ%3D%3D; rpdid=|(uuJRY|mJ))0J'u~RJuJlYl|; SESSDATA=f8f9734c%2C1758842009%2Cd8f58%2A32CjBU7up1tUyR8GB3OaNpbHl5BpSh-sW-cutyGVkfZRyv7BGERQ6pbsEEsnVUDpWN6IISVjFJVEFXU21yT0FGN3M5b2IxYlFvbm1HcFRUV1FrV00wLVk5VFdtRlNJanhxTmc2ZG95ZEVhQ2p3b1NPekVqby1Ccy0wM192aGRlc29xRzk0bjlvRXFBIIEC; bili_jct=e7426e6faf4f1362bc5b7adb29aaeee2; DedeUserID=1297789; DedeUserID__ckMd5=585d63aa2d87ca7b; hit-dyn-v2=1; bili_ticket=eyJhbGciOiJIUzI1NiIsImtpZCI6InMwMyIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDM2MTc3OTEsImlhdCI6MTc0MzM1ODUzMSwicGx0IjotMX0.oP4sCLP30R7ZKSKyLAZBHxWqwMR3xp9drnvabf93hiA; bili_ticket_expires=1743617731; sid=4h0tayk0; b_lsid=C5D341ED_195EFBA8D09; CURRENT_FNVAL=2000; bp_t_offset_1297789=1050747436680609792"
+
+
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:1200/healthz"]
             interval: 30s
             timeout: 10s
             retries: 3
         depends_on:
-            - redis
+#            - redis
             - browserless # marked
 
     browserless: # marked
@@ -34,17 +39,21 @@ services:
             timeout: 10s
             retries: 3
 
-    redis:
-        image: redis:alpine
-        restart: always
-        volumes:
-            - redis-data:/data
-        healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
-            interval: 30s
-            timeout: 10s
-            retries: 5
-            start_period: 5s
+#    redis:
+#        image: redis:alpine
+#        restart: always
+#        volumes:
+#            - redis-data:/data
+#
+#        ports:
+#          - "6379:6379"
+#
+#        healthcheck:
+#            test: ["CMD", "redis-cli", "ping"]
+#            interval: 30s
+#            timeout: 10s
+#            retries: 5
+#            start_period: 5s
 
-volumes:
-    redis-data:
+#volumes:
+#    redis-data:
