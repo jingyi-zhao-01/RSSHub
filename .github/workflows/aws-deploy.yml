@@ -19,6 +19,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Create ECR repository if it doesn't exist
+        run: |
+          # Check if repository exists
+          if ! aws ecr describe-repositories --repository-names rsshub > /dev/null 2>&1; then
+            echo "Creating ECR repository rsshub"
+            aws ecr create-repository --repository-name rsshub
+          else
+            echo "ECR repository rsshub already exists"
+          fi
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
