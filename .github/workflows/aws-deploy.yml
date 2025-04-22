@@ -43,6 +43,35 @@ jobs:
           push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/rsshub:${{ github.sha }}
 
+      - name: Create ECS task execution role
+          run: |
+            # Create the role if it doesn't exist
+            if ! aws iam get-role --role-name ecsTaskExecutionRole > /dev/null 2>&1; then
+              echo "Creating ecsTaskExecutionRole"
+              aws iam create-role \
+                --role-name ecsTaskExecutionRole \
+                --assume-role-policy-document '{
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Principal": {
+                        "Service": "ecs-tasks.amazonaws.com"
+                      },
+                      "Action": "sts:AssumeRole"
+                    }
+                  ]
+                }'
+
+              # Attach required policies
+              aws iam attach-role-policy \
+                --role-name ecsTaskExecutionRole \
+                --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+            else
+              echo "ECS task execution role already exists"
+            fi
+
+
       - name: Convert Docker Compose to ECS task definition
         run: |
           # Create task definition file for RSSHub service
