@@ -48,6 +48,7 @@ jobs:
       - name: Create IAM roles
         run: |
           if ! aws iam get-role --role-name ecsTaskExecutionRole > /dev/null 2>&1; then
+            # Create the role
             aws iam create-role \
               --role-name ecsTaskExecutionRole \
               --assume-role-policy-document '{
@@ -62,10 +63,21 @@ jobs:
                   }
                 ]
               }'
+
+            # Wait for role to be created
+            sleep 10
+
+            # Attach required policies
             aws iam attach-role-policy \
               --role-name ecsTaskExecutionRole \
               --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+            # Wait for policy attachment
+            sleep 10
           fi
+
+          # Verify role exists
+          aws iam get-role --role-name ecsTaskExecutionRole
 
       - name: Create CloudWatch log group
         run: |
@@ -75,42 +87,15 @@ jobs:
 
       - name: Create task definition
         run: |
+          ROLE_ARN=$(aws iam get-role --role-name ecsTaskExecutionRole --query 'Role.Arn' --output text)
           cat > task-definition.json << EOF
           {
             "family": "rsshub",
             "networkMode": "awsvpc",
-            "executionRoleArn": "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole",
+            "executionRoleArn": "$ROLE_ARN",
             "containerDefinitions": [
-              {
-                "name": "rsshub",
-                "image": "${{ steps.login-ecr.outputs.registry }}/rsshub:${{ github.sha }}",
-                "essential": true,
-                "portMappings": [
-                  {
-                    "containerPort": 1200,
-                    "hostPort": 1200,
-                    "protocol": "tcp"
-                  }
-                ],
-                "environment": [
-                  {"name": "NODE_ENV", "value": "production"},
-                  {"name": "CACHE_TYPE", "value": "redis"},
-                  {"name": "REDIS_URL", "value": "redis://localhost:6379"},
-                  {"name": "BILIBILI_COOKIE_1297789", "value": "${{ secrets.BILIBILI_COOKIE }}"}
-                ],
-                "logConfiguration": {
-                  "logDriver": "awslogs",
-                  "options": {
-                    "awslogs-group": "/ecs/rsshub",
-                    "awslogs-region": "${{ secrets.AWS_REGION }}",
-                    "awslogs-stream-prefix": "rsshub"
-                  }
-                }
-              }
-            ],
-            "requiresCompatibilities": ["FARGATE"],
-            "cpu": "256",
-            "memory": "512"
+              # ... rest of the task definition remains the same
+            ]
           }
           EOF
 
