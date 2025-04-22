@@ -19,14 +19,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Create ECR repository if it doesn't exist
+      - name: Create ECR repository
         run: |
-          # Check if repository exists
           if ! aws ecr describe-repositories --repository-names rsshub > /dev/null 2>&1; then
-            echo "Creating ECR repository rsshub"
             aws ecr create-repository --repository-name rsshub
-          else
-            echo "ECR repository rsshub already exists"
           fi
 
       - name: Login to Amazon ECR
@@ -36,46 +32,50 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build and push RSSHub image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/rsshub:${{ github.sha }}
 
-      - name: Create ECS task execution role
-          run: |
-            # Create the role if it doesn't exist
-            if ! aws iam get-role --role-name ecsTaskExecutionRole > /dev/null 2>&1; then
-              echo "Creating ecsTaskExecutionRole"
-              aws iam create-role \
-                --role-name ecsTaskExecutionRole \
-                --assume-role-policy-document '{
-                  "Version": "2012-10-17",
-                  "Statement": [
-                    {
-                      "Effect": "Allow",
-                      "Principal": {
-                        "Service": "ecs-tasks.amazonaws.com"
-                      },
-                      "Action": "sts:AssumeRole"
-                    }
-                  ]
-                }'
-
-              # Attach required policies
-              aws iam attach-role-policy \
-                --role-name ecsTaskExecutionRole \
-                --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-            else
-              echo "ECS task execution role already exists"
-            fi
-
-
-      - name: Convert Docker Compose to ECS task definition
+      - name: Create ECS cluster
         run: |
-          # Create task definition file for RSSHub service
-          cat > rsshub-task-def.json << EOF
+          if ! aws ecs describe-clusters --clusters rsshub-cluster --query 'clusters[0]' > /dev/null 2>&1; then
+            aws ecs create-cluster --cluster-name rsshub-cluster
+          fi
+
+      - name: Create IAM roles
+        run: |
+          if ! aws iam get-role --role-name ecsTaskExecutionRole > /dev/null 2>&1; then
+            aws iam create-role \
+              --role-name ecsTaskExecutionRole \
+              --assume-role-policy-document '{
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": "ecs-tasks.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              }'
+            aws iam attach-role-policy \
+              --role-name ecsTaskExecutionRole \
+              --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+          fi
+
+      - name: Create CloudWatch log group
+        run: |
+          if ! aws logs describe-log-groups --log-group-name-prefix /ecs/rsshub > /dev/null 2>&1; then
+            aws logs create-log-group --log-group-name /ecs/rsshub
+          fi
+
+      - name: Create task definition
+        run: |
+          cat > task-definition.json << EOF
           {
             "family": "rsshub",
             "networkMode": "awsvpc",
@@ -95,8 +95,7 @@ jobs:
                 "environment": [
                   {"name": "NODE_ENV", "value": "production"},
                   {"name": "CACHE_TYPE", "value": "redis"},
-                  {"name": "REDIS_URL", "value": "redis://rsshub-redis.internal:6379"},
-                  {"name": "PUPPETEER_WS_ENDPOINT", "value": "ws://rsshub-browserless.internal:3000"},
+                  {"name": "REDIS_URL", "value": "redis://localhost:6379"},
                   {"name": "BILIBILI_COOKIE_1297789", "value": "${{ secrets.BILIBILI_COOKIE }}"}
                 ],
                 "logConfiguration": {
@@ -118,25 +117,32 @@ jobs:
       - name: Register task definition
         id: task-def
         run: |
-          aws ecs register-task-definition \
-            --cli-input-json file://rsshub-task-def.json \
-            --region ${{ secrets.AWS_REGION }}
-          echo "::set-output name=task_definition_arn::$(aws ecs describe-task-definition --task-definition rsshub --query 'taskDefinition.taskDefinitionArn' --output text)"
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
-      - name: Deploy to ECS
+      - name: Create or update ECS service
         run: |
-          aws ecs update-service \
-            --service rsshub-service \
-            --cluster rsshub-cluster \
-            --task-definition ${{ steps.task-def.outputs.task_definition_arn }} \
-            --force-new-deployment \
-            --region ${{ secrets.AWS_REGION }}
+          if ! aws ecs describe-services --cluster rsshub-cluster --services rsshub-service --query 'services[0]' > /dev/null 2>&1; then
+            aws ecs create-service \
+              --cluster rsshub-cluster \
+              --service-name rsshub-service \
+              --task-definition ${{ steps.task-def.outputs.task_definition_arn }} \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.SUBNET_ID }}],securityGroups=[${{ secrets.SECURITY_GROUP_ID }}],assignPublicIp=ENABLED}"
+          else
+            aws ecs update-service \
+              --cluster rsshub-cluster \
+              --service rsshub-service \
+              --task-definition ${{ steps.task-def.outputs.task_definition_arn }} \
+              --force-new-deployment
+          fi
 
-      - name: Verify deployment
+      - name: Wait for service stability
         run: |
-          echo "Waiting for deployment to complete..."
           aws ecs wait services-stable \
             --cluster rsshub-cluster \
-            --services rsshub-service \
-            --region ${{ secrets.AWS_REGION }}
-          echo "Deployment completed successfully"
+            --services rsshub-service
