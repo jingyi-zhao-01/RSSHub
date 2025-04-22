@@ -7,11 +7,15 @@ services:
         restart: always
         ports:
             - "1200:1200"
+        env_file:
+          - ./.env
         environment:
-            NODE_ENV: production
-            CACHE_TYPE: redis
-            REDIS_URL: "redis://redis:6379/"
+            NODE_ENV: ${NODE_ENV}
+            CACHE_TYPE: ${CACHE_TYPE}
+            REDIS_URL: ${REDIS_URL}
             PUPPETEER_WS_ENDPOINT: "ws://browserless:3000" # marked
+            #https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/dynamic_new?uid=0&type=8
+            BILIBILI_COOKIE_1297789: ${BILIBILI_COOKIE_1297789}
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:1200/healthz"]
             interval: 30s
