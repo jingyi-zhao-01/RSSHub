@@ -1,0 +1,103 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push RSSHub image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/rsshub:${{ github.sha }}
+
+      - name: Convert Docker Compose to ECS task definition
+        run: |
+          # Create task definition file for RSSHub service
+          cat > rsshub-task-def.json << EOF
+          {
+            "family": "rsshub",
+            "networkMode": "awsvpc",
+            "executionRoleArn": "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole",
+            "containerDefinitions": [
+              {
+                "name": "rsshub",
+                "image": "${{ steps.login-ecr.outputs.registry }}/rsshub:${{ github.sha }}",
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 1200,
+                    "hostPort": 1200,
+                    "protocol": "tcp"
+                  }
+                ],
+                "environment": [
+                  {"name": "NODE_ENV", "value": "production"},
+                  {"name": "CACHE_TYPE", "value": "redis"},
+                  {"name": "REDIS_URL", "value": "redis://rsshub-redis.internal:6379"},
+                  {"name": "PUPPETEER_WS_ENDPOINT", "value": "ws://rsshub-browserless.internal:3000"},
+                  {"name": "BILIBILI_COOKIE_1297789", "value": "${{ secrets.BILIBILI_COOKIE }}"}
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/rsshub",
+                    "awslogs-region": "${{ secrets.AWS_REGION }}",
+                    "awslogs-stream-prefix": "rsshub"
+                  }
+                }
+              }
+            ],
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512"
+          }
+          EOF
+
+      - name: Register task definition
+        id: task-def
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://rsshub-task-def.json \
+            --region ${{ secrets.AWS_REGION }}
+          echo "::set-output name=task_definition_arn::$(aws ecs describe-task-definition --task-definition rsshub --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --service rsshub-service \
+            --cluster rsshub-cluster \
+            --task-definition ${{ steps.task-def.outputs.task_definition_arn }} \
+            --force-new-deployment \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for deployment to complete..."
+          aws ecs wait services-stable \
+            --cluster rsshub-cluster \
+            --services rsshub-service \
+            --region ${{ secrets.AWS_REGION }}
+          echo "Deployment completed successfully"
