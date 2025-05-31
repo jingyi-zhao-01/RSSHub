@@ -204,6 +204,9 @@ export type Config = {
     javdb: {
         session?: string;
     };
+    jumeili: {
+        cookie?: string;
+    };
     keylol: {
         cookie?: string;
     };
@@ -292,6 +295,7 @@ export type Config = {
     };
     saraba1st: {
         cookie?: string;
+        host?: string;
     };
     sehuatang: {
         cookie?: string;
@@ -396,6 +400,9 @@ export type Config = {
     };
     zsxq: {
         accessToken?: string;
+    };
+    smzdm: {
+        cookie?: string;
     };
 };
 
@@ -641,6 +648,9 @@ const calculateValue = () => {
         javdb: {
             session: envs.JAVDB_SESSION,
         },
+        jumeili: {
+            cookie: envs.JUMEILI_COOKIE,
+        },
         keylol: {
             cookie: envs.KEYLOL_COOKIE,
         },
@@ -729,6 +739,7 @@ const calculateValue = () => {
         },
         saraba1st: {
             cookie: envs.SARABA1ST_COOKIE,
+            host: envs.SARABA1ST_HOST || 'https://stage1st.com',
         },
         sehuatang: {
             cookie: envs.SEHUATANG_COOKIE,
@@ -833,6 +844,9 @@ const calculateValue = () => {
         },
         zsxq: {
             accessToken: envs.ZSXQ_ACCESS_TOKEN,
+        },
+        smzdm: {
+            cookie: envs.SMZDM_COOKIE,
         },
     };
 

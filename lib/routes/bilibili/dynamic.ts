@@ -7,10 +7,11 @@ import { parseDate } from '@/utils/parse-date';
 import { fallback, queryToBoolean } from '@/utils/readable-social';
 import cacheIn from './cache';
 import { BilibiliWebDynamicResponse, Item2, Modules } from './api-interface';
+import { parseDuration } from '@/utils/helpers';
 
 export const route: Route = {
     path: '/user/dynamic/:uid/:routeParams?',
-    categories: ['social-media', 'popular'],
+    categories: ['social-media'],
     view: ViewType.SocialMedia,
     example: '/bilibili/user/dynamic/2267573',
     parameters: {
@@ -242,18 +243,30 @@ async function handler(ctx) {
     const directLink = fallback(undefined, queryToBoolean(routeParams.directLink), false);
     const hideGoods = fallback(undefined, queryToBoolean(routeParams.hideGoods), false);
 
-    const cookie = await cacheIn.getCookie();
+    const getDynamic = async (cookie: string) => {
+        const params = utils.addDmVerifyInfo(`offset=${offset}&host_mid=${uid}&platform=web&features=itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote`, utils.getDmImgList());
+        const response = await got(`https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?${params}`, {
+            headers: {
+                Referer: `https://space.bilibili.com/${uid}/`,
+                Cookie: cookie,
+            },
+        });
+        const body = JSONbig.parse(response.body);
+        return body;
+    };
 
-    const params = utils.addDmVerifyInfo(`offset=${offset}&host_mid=${uid}&platform=web&features=itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote`, utils.getDmImgList());
-    const response = await got(`https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?${params}`, {
-        headers: {
-            Referer: `https://space.bilibili.com/${uid}/`,
-            Cookie: cookie,
-        },
-    });
-    const body = JSONbig.parse(response.body);
+    let body: BilibiliWebDynamicResponse;
+
+    const cookie = (await cacheIn.getCookie()) as string;
+    body = await getDynamic(cookie);
+
     if (body?.code === -352) {
-        throw new Error('Request failed, please try again.');
+        const cookie = (await cacheIn.getCookie(true)) as string;
+        body = await getDynamic(cookie);
+
+        if (body?.code === -352) {
+            throw new Error('遇到源站风控校验，请稍后再试');
+        }
     }
     const items = (body as BilibiliWebDynamicResponse)?.data?.items;
 
@@ -387,6 +400,7 @@ async function handler(ctx) {
                                   {
                                       url: urlResult?.videoPageUrl || originUrlResult?.videoPageUrl,
                                       mime_type: 'text/html',
+                                      duration_in_seconds: data.module_dynamic?.major?.archive?.duration_text ? parseDuration(data.module_dynamic.major.archive.duration_text) : undefined,
                                   },
                               ]
                             : undefined,
