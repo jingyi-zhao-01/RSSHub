@@ -4,7 +4,8 @@ import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
 
-import { type CheerioAPI, type Cheerio, type Element, load } from 'cheerio';
+import { type CheerioAPI, type Cheerio, load } from 'cheerio';
+import type { Element } from 'domhandler';
 import { type Context } from 'hono';
 
 export const handler = async (ctx: Context): Promise<Data> => {
@@ -20,15 +21,15 @@ export const handler = async (ctx: Context): Promise<Data> => {
 
     let items: DataItem[] = [];
 
-    items = $('div.gold-news-content div.view-content table.views-table tbody tr')
+    items = $('section#block-views-latest-articles-block div.media, section#block-system-main table.views-table tr')
         .slice(0, limit)
         .toArray()
         .map((el): Element => {
             const $el: Cheerio<Element> = $(el);
-            const $aEl: Cheerio<Element> = $el.find('td.views-field-title a').first();
+            const $aEl: Cheerio<Element> = $el.find('td.views-field-title a, div.views-field-title a').first();
 
             const title: string = $aEl.text();
-            const pubDateStr: string | undefined = $el.find('td.views-field-created').text().trim();
+            const pubDateStr: string | undefined = $el.find('td.views-field-created, div.views-field-created').text().trim();
             const linkUrl: string | undefined = $aEl.attr('href');
             const authorEls: Element[] = $el.find('a.username').toArray();
             const authors: DataItem['author'] = authorEls.map((authorEl) => {

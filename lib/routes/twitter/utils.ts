@@ -1,4 +1,4 @@
-import URL from 'url';
+import URL from 'node:url';
 import { config } from '@/config';
 import { TwitterApi } from 'twitter-api-v2';
 import { fallback, queryToBoolean, queryToInteger } from '@/utils/readable-social';
@@ -67,6 +67,7 @@ const ProcessFeed = (ctx, { data = [] }, params = {}) => {
         heightOfPics: fallback(params.heightOfPics, queryToInteger(routeParams.get('heightOfPics')), -1),
         sizeOfAuthorAvatar: fallback(params.sizeOfAuthorAvatar, queryToInteger(routeParams.get('sizeOfAuthorAvatar')), 48),
         sizeOfQuotedAuthorAvatar: fallback(params.sizeOfQuotedAuthorAvatar, queryToInteger(routeParams.get('sizeOfQuotedAuthorAvatar')), 24),
+        mediaNumber: fallback(params.mediaNumber, queryToInteger(routeParams.get('mediaNumber')), false),
     };
 
     params = mergedParams;
@@ -85,7 +86,7 @@ const ProcessFeed = (ctx, { data = [] }, params = {}) => {
         addLinkForPics,
         showTimestampInDescription,
         showQuotedInTitle,
-
+        mediaNumber,
         widthOfPics,
         heightOfPics,
         sizeOfAuthorAvatar,
@@ -94,19 +95,20 @@ const ProcessFeed = (ctx, { data = [] }, params = {}) => {
 
     const formatVideo = (media, extraAttrs = '') => {
         let content = '';
-        const video = media.video_info.variants.reduce((video, item) => {
-            if ((item.bitrate || 0) > (video.bitrate || -Infinity)) {
-                video = item;
-            }
-            return video;
-        }, {});
+        let bestVideo = null;
 
-        if (video.url) {
+        for (const item of media.video_info.variants) {
+            if (!bestVideo || (item.bitrate || 0) > (bestVideo.bitrate || -Infinity)) {
+                bestVideo = item;
+            }
+        }
+
+        if (bestVideo && bestVideo.url) {
             const gifAutoPlayAttr = media.type === 'animated_gif' ? `autoplay loop muted webkit-playsinline playsinline` : '';
             if (!readable) {
                 content += '<br>';
             }
-            content += `<video width="${media.sizes.large.w}" height="${media.sizes.large.h}" src='${video.url}' ${gifAutoPlayAttr} controls='controls' poster='${getOriginalImg(media.media_url_https)}' ${extraAttrs}></video>`;
+            content += `<video width="${media.sizes.large.w}" height="${media.sizes.large.h}" src='${bestVideo.url}' ${gifAutoPlayAttr} controls='controls' poster='${getOriginalImg(media.media_url_https)}' ${extraAttrs}></video>`;
         }
 
         return content;
@@ -115,6 +117,8 @@ const ProcessFeed = (ctx, { data = [] }, params = {}) => {
     const formatMedia = (item) => {
         let img = '';
         if (item.extended_entities) {
+            const mediaCount = item.extended_entities.media.length;
+            let index = 1;
             for (const media of item.extended_entities.media) {
                 // https://developer.x.com/en/docs/tweets/data-dictionary/overview/extended-entities-object
                 let content = '';
@@ -155,6 +159,11 @@ const ProcessFeed = (ctx, { data = [] }, params = {}) => {
                 }
 
                 img += content;
+
+                if (mediaNumber) {
+                    img += `<p style="text-align:center">${index}/${mediaCount}</p>`;
+                    index++;
+                }
             }
         }
 
