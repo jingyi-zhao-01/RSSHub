@@ -204,6 +204,9 @@ export type Config = {
     javdb: {
         session?: string;
     };
+    jumeili: {
+        cookie?: string;
+    };
     keylol: {
         cookie?: string;
     };
@@ -221,6 +224,13 @@ export type Config = {
     malaysiakini: {
         email?: string;
         password?: string;
+        refreshToken?: string;
+    };
+    mangadex: {
+        username?: string;
+        password?: string;
+        clientId?: string;
+        clientSecret?: string;
         refreshToken?: string;
     };
     manhuagui: {
@@ -244,6 +254,10 @@ export type Config = {
     };
     misskey: {
         accessToken?: string;
+    };
+    mixi2: {
+        authToken?: string;
+        authKey?: string;
     };
     mox: {
         cookie: string;
@@ -292,6 +306,7 @@ export type Config = {
     };
     saraba1st: {
         cookie?: string;
+        host?: string;
     };
     sehuatang: {
         cookie?: string;
@@ -397,6 +412,9 @@ export type Config = {
     zsxq: {
         accessToken?: string;
     };
+    smzdm: {
+        cookie?: string;
+    };
 };
 
 const value: Config | Record<string, any> = {};
@@ -442,7 +460,7 @@ const calculateValue = () => {
     const _value = {
         // app config
         disallowRobot: toBoolean(envs.DISALLOW_ROBOT, false),
-        enableCluster: envs.ENABLE_CLUSTER,
+        enableCluster: toBoolean(envs.ENABLE_CLUSTER, false),
         isPackage: !!envs.IS_PACKAGE,
         nodeName: envs.NODE_NAME,
         puppeteerWSEndpoint: envs.PUPPETEER_WS_ENDPOINT,
@@ -641,6 +659,9 @@ const calculateValue = () => {
         javdb: {
             session: envs.JAVDB_SESSION,
         },
+        jumeili: {
+            cookie: envs.JUMEILI_COOKIE,
+        },
         keylol: {
             cookie: envs.KEYLOL_COOKIE,
         },
@@ -659,6 +680,13 @@ const calculateValue = () => {
             email: envs.MALAYSIAKINI_EMAIL,
             password: envs.MALAYSIAKINI_PASSWORD,
             refreshToken: envs.MALAYSIAKINI_REFRESHTOKEN,
+        },
+        mangadex: {
+            username: envs.MANGADEX_USERNAME, // required when refresh-token is not set
+            password: envs.MANGADEX_PASSWORD, // required when refresh-token is not set
+            clientId: envs.MANGADEX_CLIENT_ID,
+            clientSecret: envs.MANGADEX_CLIENT_SECRET,
+            refreshToken: envs.MANGADEX_REFRESH_TOKEN,
         },
         manhuagui: {
             cookie: envs.MHGUI_COOKIE,
@@ -681,6 +709,10 @@ const calculateValue = () => {
         },
         misskey: {
             accessToken: envs.MISSKEY_ACCESS_TOKEN,
+        },
+        mixi2: {
+            authToken: envs.MIXI2_AUTH_TOKEN,
+            authKey: envs.MIXI2_AUTH_KEY,
         },
         mox: {
             cookie: envs.MOX_COOKIE,
@@ -729,6 +761,7 @@ const calculateValue = () => {
         },
         saraba1st: {
             cookie: envs.SARABA1ST_COOKIE,
+            host: envs.SARABA1ST_HOST || 'https://stage1st.com',
         },
         sehuatang: {
             cookie: envs.SEHUATANG_COOKIE,
@@ -833,6 +866,9 @@ const calculateValue = () => {
         },
         zsxq: {
             accessToken: envs.ZSXQ_ACCESS_TOKEN,
+        },
+        smzdm: {
+            cookie: envs.SMZDM_COOKIE,
         },
     };
 
